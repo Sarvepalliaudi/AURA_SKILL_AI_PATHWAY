@@ -79,11 +79,21 @@ const responseSchema = {
   required: ["summary", "recommendedRole", "skillsFeedback", "skillGapAnalysis", "futureProspects", "pathway"]
 };
 
+// Defensive check for the global process object
+const getApiKey = () => {
+  try {
+    // Check globalThis for wider environment compatibility
+    const env = (globalThis as any).process?.env || {};
+    return env.API_KEY;
+  } catch (e) {
+    return undefined;
+  }
+};
+
 export const generatePathway = async (profile: LearnerProfile): Promise<TrainingPathway> => {
-  // Always create a new instance before making an API call to ensure current environment state is captured.
-  const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : undefined;
+  const apiKey = getApiKey();
   if (!apiKey) {
-    throw new APIError("API Key is missing. Please ensure the environment variable is configured.");
+    throw new APIError("The Gemini API Key is not configured. Please check your environment settings.");
   }
   
   const ai = new GoogleGenAI({ apiKey });
@@ -138,7 +148,7 @@ export const generatePathway = async (profile: LearnerProfile): Promise<Training
 };
 
 export const searchCourseUpdates = async (resourceLabel: string, role: string) => {
-  const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : undefined;
+  const apiKey = getApiKey();
   if (!apiKey) {
     throw new Error("API Key is missing.");
   }
