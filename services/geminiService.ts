@@ -79,21 +79,10 @@ const responseSchema = {
   required: ["summary", "recommendedRole", "skillsFeedback", "skillGapAnalysis", "futureProspects", "pathway"]
 };
 
-// Defensive check for the global process object
-const getApiKey = () => {
-  try {
-    // Check globalThis for wider environment compatibility
-    const env = (globalThis as any).process?.env || {};
-    return env.API_KEY;
-  } catch (e) {
-    return undefined;
-  }
-};
-
 export const generatePathway = async (profile: LearnerProfile): Promise<TrainingPathway> => {
-  const apiKey = getApiKey();
+  const apiKey = process.env.API_KEY;
   if (!apiKey) {
-    throw new APIError("The Gemini API Key is not configured. Please check your environment settings.");
+    throw new APIError("Gemini API Key is missing. Please set the API_KEY environment variable in your Vercel settings.");
   }
   
   const ai = new GoogleGenAI({ apiKey });
@@ -107,22 +96,10 @@ export const generatePathway = async (profile: LearnerProfile): Promise<Training
   2. Map these to ${isSports ? 'specific Sports Academies, SAI Regional Centers, or Olympic tracks' : 'NSQF certified courses, ITIs, and Industry apprenticeship programs'}.
   3. Every human is different; personalize the steps based on their learning pace and socioeconomic context.
   4. For Sports, include 'Trial/Selection' phases and 'Fitness Training' milestones.
-  5. Provide REALISTIC career packages in INR (considering sponsorships for sports or industry salaries for vocational).
+  5. Provide REALISTIC career packages in INR.
   6. Output ONLY valid JSON according to the schema.`;
 
-  const prompt = `
-    Create a highly personalized Talent-to-Career Pathway for:
-    - Name: ${profile.name}
-    - Category: ${profile.talentCategory}
-    - Base Level: ${profile.educationLevel}
-    - Field/Sport: ${profile.fieldOfStudy}
-    - User's Unique Talents: ${profile.priorSkills}
-    - Desired Goal: ${profile.careerAspirations}
-    - Context: ${profile.socioEconomicContext}
-    - Pace: ${profile.learningPace}
-
-    Focus heavily on recommending specific PHYSICAL training centers or academies if it's a sports/practical role.
-  `;
+  const prompt = `Create a highly personalized Talent-to-Career Pathway for: Name: ${profile.name}, Category: ${profile.talentCategory}, Base Level: ${profile.educationLevel}, Field/Sport: ${profile.fieldOfStudy}, User's Unique Talents: ${profile.priorSkills}, Desired Goal: ${profile.careerAspirations}, Context: ${profile.socioEconomicContext}, Pace: ${profile.learningPace}.`;
 
   try {
     const response = await ai.models.generateContent({
@@ -143,12 +120,12 @@ export const generatePathway = async (profile: LearnerProfile): Promise<Training
     return pathwayData as TrainingPathway;
   } catch (error) {
     console.error("Gemini API Error:", error);
-    throw new APIError("Failed to map your talents to a pathway. Please try again.");
+    throw new APIError("Failed to map your talents to a pathway. Please check your API key and network.");
   }
 };
 
 export const searchCourseUpdates = async (resourceLabel: string, role: string) => {
-  const apiKey = getApiKey();
+  const apiKey = process.env.API_KEY;
   if (!apiKey) {
     throw new Error("API Key is missing.");
   }
@@ -167,12 +144,7 @@ export const searchCourseUpdates = async (resourceLabel: string, role: string) =
       .filter((s: any) => s.uri && s.title) || [];
     
     const timestamp = new Date().toLocaleString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
+      day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true
     });
 
     return { text, sources, sourceType: 'Grounded Live Update', timestamp };
