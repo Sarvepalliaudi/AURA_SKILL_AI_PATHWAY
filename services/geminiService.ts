@@ -1,12 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { LearnerProfile, TrainingPathway } from '../types';
-import { APIError, ParseError } from "./errors";
-
-if (!process.env.API_KEY) {
-  throw new Error("API_KEY environment variable not set");
-}
-
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+import { APIError } from "./errors";
 
 const responseSchema = {
   type: Type.OBJECT,
@@ -86,6 +80,13 @@ const responseSchema = {
 };
 
 export const generatePathway = async (profile: LearnerProfile): Promise<TrainingPathway> => {
+  // Always create a new instance before making an API call to ensure current environment state is captured.
+  const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : undefined;
+  if (!apiKey) {
+    throw new APIError("API Key is missing. Please ensure the environment variable is configured.");
+  }
+  
+  const ai = new GoogleGenAI({ apiKey });
   const isSports = profile.talentCategory === 'Sports/Athletics';
   
   const systemInstruction = `You are a World-Class Talent Scout and Career Consultant specializing in both the Indian Vocational (NSQF) and Athletic (SAI/Sports Authority) systems. 
@@ -137,6 +138,13 @@ export const generatePathway = async (profile: LearnerProfile): Promise<Training
 };
 
 export const searchCourseUpdates = async (resourceLabel: string, role: string) => {
+  const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : undefined;
+  if (!apiKey) {
+    throw new Error("API Key is missing.");
+  }
+  
+  const ai = new GoogleGenAI({ apiKey });
+
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
@@ -148,7 +156,6 @@ export const searchCourseUpdates = async (resourceLabel: string, role: string) =
       ?.map((chunk: any) => ({ title: chunk.web?.title, uri: chunk.web?.uri }))
       .filter((s: any) => s.uri && s.title) || [];
     
-    // Create a detailed timestamp
     const timestamp = new Date().toLocaleString('en-IN', {
       day: '2-digit',
       month: 'short',
