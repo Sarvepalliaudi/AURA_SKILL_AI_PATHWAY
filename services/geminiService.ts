@@ -79,27 +79,27 @@ const responseSchema = {
   required: ["summary", "recommendedRole", "skillsFeedback", "skillGapAnalysis", "futureProspects", "pathway"]
 };
 
+// Safety wrapper for API key retrieval
+const getApiKey = () => {
+  try {
+    return (globalThis as any).process?.env?.API_KEY || (import.meta as any).env?.VITE_API_KEY;
+  } catch (e) {
+    return undefined;
+  }
+};
+
 export const generatePathway = async (profile: LearnerProfile): Promise<TrainingPathway> => {
-  const apiKey = process.env.API_KEY;
+  const apiKey = getApiKey();
   if (!apiKey) {
-    throw new APIError("Gemini API Key is missing. Please set the API_KEY environment variable in your Vercel settings.");
+    throw new APIError("Gemini API Key is missing. Please ensure API_KEY is set in Vercel Environment Variables.");
   }
   
   const ai = new GoogleGenAI({ apiKey });
   const isSports = profile.talentCategory === 'Sports/Athletics';
   
-  const systemInstruction = `You are a World-Class Talent Scout and Career Consultant specializing in both the Indian Vocational (NSQF) and Athletic (SAI/Sports Authority) systems. 
-  Your primary goal is to map INDIVIDUAL HUMAN TALENT to professional outcomes. 
-  
-  For ${isSports ? 'SPORTS' : 'ACADEMIC/VOCATIONAL'} profiles:
-  1. Analyze the 'priorSkills' as specific human aptitudes (e.g., endurance, logical reasoning, dexterity).
-  2. Map these to ${isSports ? 'specific Sports Academies, SAI Regional Centers, or Olympic tracks' : 'NSQF certified courses, ITIs, and Industry apprenticeship programs'}.
-  3. Every human is different; personalize the steps based on their learning pace and socioeconomic context.
-  4. For Sports, include 'Trial/Selection' phases and 'Fitness Training' milestones.
-  5. Provide REALISTIC career packages in INR.
-  6. Output ONLY valid JSON according to the schema.`;
+  const systemInstruction = `You are a World-Class Talent Scout and Career Consultant specializing in both the Indian Vocational (NSQF) and Athletic (SAI/Sports Authority) systems. Your primary goal is to map INDIVIDUAL HUMAN TALENT to professional outcomes. For ${isSports ? 'SPORTS' : 'ACADEMIC/VOCATIONAL'} profiles: 1. Analyze aptitudes. 2. Map to Indian centers/academies. 3. Personalize pace. 4. Include realistic INR packages. Output ONLY valid JSON.`;
 
-  const prompt = `Create a highly personalized Talent-to-Career Pathway for: Name: ${profile.name}, Category: ${profile.talentCategory}, Base Level: ${profile.educationLevel}, Field/Sport: ${profile.fieldOfStudy}, User's Unique Talents: ${profile.priorSkills}, Desired Goal: ${profile.careerAspirations}, Context: ${profile.socioEconomicContext}, Pace: ${profile.learningPace}.`;
+  const prompt = `Create a pathway for: Name: ${profile.name}, Category: ${profile.talentCategory}, Base: ${profile.educationLevel}, Field: ${profile.fieldOfStudy}, Talents: ${profile.priorSkills}, Goal: ${profile.careerAspirations}, Context: ${profile.socioEconomicContext}, Pace: ${profile.learningPace}.`;
 
   try {
     const response = await ai.models.generateContent({
@@ -120,22 +120,20 @@ export const generatePathway = async (profile: LearnerProfile): Promise<Training
     return pathwayData as TrainingPathway;
   } catch (error) {
     console.error("Gemini API Error:", error);
-    throw new APIError("Failed to map your talents to a pathway. Please check your API key and network.");
+    throw new APIError("Failed to generate pathway. Check your API key and quota.");
   }
 };
 
 export const searchCourseUpdates = async (resourceLabel: string, role: string) => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) {
-    throw new Error("API Key is missing.");
-  }
+  const apiKey = getApiKey();
+  if (!apiKey) throw new Error("API Key missing.");
   
   const ai = new GoogleGenAI({ apiKey });
 
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `Find admission forms, trial dates, or contact info for "${resourceLabel}" related to becoming a "${role}" in India.`,
+      contents: `Find latest admission info for "${resourceLabel}" regarding "${role}" career in India.`,
       config: { tools: [{ googleSearch: {} }] },
     });
     const text = response.text;
