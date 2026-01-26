@@ -13,111 +13,153 @@ const responseSchema = {
   properties: {
     summary: {
       type: Type.STRING,
-      description: "A brief, encouraging summary of the recommended pathway for the learner. Address the learner by name."
+      description: "A deep, personalized summary explaining why this specific pathway was chosen based on the user's unique talents. Address the learner by name."
     },
     recommendedRole: {
       type: Type.STRING,
-      description: "The specific job role this pathway prepares the learner for."
+      description: "The primary job role or professional athletic title target."
     },
     skillsFeedback: {
       type: Type.STRING,
-      description: "Provide specific, actionable advice based on the learner's 'priorSkills'. This should be constructive and encouraging. If they have relevant skills, suggest how to build on them. If they are starting new, suggest foundational first steps. Crucially, include recommendations for concrete actions, such as 'Consider exploring free courses on data entry on the eSkill India portal' or 'A good starting project would be to create a simple budget spreadsheet using MS Excel to practice your skills.'"
+      description: "Analysis of the user's existing talents (physical or mental) and how they translate to the industry."
     },
-    pathway: {
+    skillGapAnalysis: {
+      type: Type.OBJECT,
+      properties: {
+        matchingSkills: { type: Type.ARRAY, items: { type: Type.STRING } },
+        missingSkills: { type: Type.ARRAY, items: { type: Type.STRING } },
+        criticalGaps: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Specific hurdles (physical, technical, or educational) to overcome immediately." },
+        summary: { type: Type.STRING }
+      },
+      required: ["matchingSkills", "missingSkills", "criticalGaps", "summary"]
+    },
+    futureProspects: {
       type: Type.ARRAY,
-      description: "The sequence of steps in the training journey.",
+      description: "A list of future career milestones, roles, and realistic income/packages in INR.",
       items: {
         type: Type.OBJECT,
         properties: {
-          step: { type: Type.INTEGER, description: "The step number, starting from 1." },
-          title: { type: Type.STRING, description: "A clear title for this step (e.g., 'Foundational Skills in Digital Literacy', 'Advanced Certification in Cloud Computing')." },
-          description: { type: Type.STRING, description: "A detailed explanation of this step, including what the learner will achieve and why it's important." },
-          nsqfLevel: { type: Type.STRING, description: "The corresponding NSQF level for this training step (e.g., 'Level 3', 'Level 5'). If not applicable, state 'N/A'." },
-          duration: { type: Type.STRING, description: "An estimated duration for completing this step (e.g., '3 months', '40 hours', '6 weeks')." },
+          role: { type: Type.STRING },
+          description: { type: Type.STRING },
+          estimatedPackage: { type: Type.STRING, description: "Monthly or Annual salary/stipend in INR." },
+          growthPotential: { type: Type.STRING, enum: ['High', 'Medium', 'Low'] }
+        },
+        required: ["role", "description", "estimatedPackage", "growthPotential"]
+      }
+    },
+    pathway: {
+      type: Type.ARRAY,
+      description: "Step-by-step roadmap including specific Indian training centers, academies, or institutes.",
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          step: { type: Type.INTEGER },
+          title: { type: Type.STRING },
+          description: { type: Type.STRING },
+          nsqfLevel: { type: Type.STRING, description: "NSQF level for studies, or 'Pro-Track' for sports." },
+          duration: { type: Type.STRING },
           type: { 
             type: Type.STRING,
-            enum: ['Course', 'Certification', 'On-the-Job Training', 'Micro-credential', 'Assessment', 'Apprenticeship', 'Internship', 'Workshop', 'Online Module'],
-            description: "The type of activity." 
+            enum: ['Course', 'Certification', 'On-the-Job Training', 'Micro-credential', 'Assessment', 'Apprenticeship', 'Internship', 'Workshop', 'Online Module', 'Athletic Coaching', 'Fitness Training', 'Trial/Selection']
           },
-          relevantSkills: {
+          costType: { type: Type.STRING, enum: ['Free', 'Paid', 'Mixed'] },
+          costNotes: { type: Type.STRING },
+          learningResources: {
             type: Type.ARRAY,
-            description: "An array of strings listing which of the user's 'priorSkills' are directly relevant to this step. Only include skills from the user's input. If no prior skills apply, this can be omitted.",
-            items: { type: Type.STRING }
-          }
+            description: "MUST include physical locations/academies (e.g. SAI Center, Bangalore) for sports or specific portals (Swayam) for studies.",
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                label: { type: Type.STRING, description: "Official name of the Academy, Center, or Platform." },
+                url: { type: Type.STRING, description: "Website URL or Google Maps Search link for the physical center." }
+              },
+              required: ["label", "url"]
+            }
+          },
+          relevantSkills: { type: Type.ARRAY, items: { type: Type.STRING } }
         },
-        required: ["step", "title", "description", "nsqfLevel", "duration", "type"]
+        required: ["step", "title", "description", "nsqfLevel", "duration", "type", "costType", "learningResources"]
       }
     }
   },
-  required: ["summary", "recommendedRole", "skillsFeedback", "pathway"]
+  required: ["summary", "recommendedRole", "skillsFeedback", "skillGapAnalysis", "futureProspects", "pathway"]
 };
 
-
 export const generatePathway = async (profile: LearnerProfile): Promise<TrainingPathway> => {
-  const systemInstruction = `You are an expert career counselor for India's National Skills Qualifications Framework (NSQF). Your role is to create a personalized, adaptive vocational training pathway for a learner based on their profile and aspirations. The pathway must align with NCVET qualifications and consider current industry demands for skills in India. The output must be a structured JSON object following the provided schema.`;
+  const isSports = profile.talentCategory === 'Sports/Athletics';
+  
+  const systemInstruction = `You are a World-Class Talent Scout and Career Consultant specializing in both the Indian Vocational (NSQF) and Athletic (SAI/Sports Authority) systems. 
+  Your primary goal is to map INDIVIDUAL HUMAN TALENT to professional outcomes. 
+  
+  For ${isSports ? 'SPORTS' : 'ACADEMIC/VOCATIONAL'} profiles:
+  1. Analyze the 'priorSkills' as specific human aptitudes (e.g., endurance, logical reasoning, dexterity).
+  2. Map these to ${isSports ? 'specific Sports Academies, SAI Regional Centers, or Olympic tracks' : 'NSQF certified courses, ITIs, and Industry apprenticeship programs'}.
+  3. Every human is different; personalize the steps based on their learning pace and socioeconomic context.
+  4. For Sports, include 'Trial/Selection' phases and 'Fitness Training' milestones.
+  5. Provide REALISTIC career packages in INR (considering sponsorships for sports or industry salaries for vocational).
+  6. Output ONLY valid JSON according to the schema.`;
 
   const prompt = `
-    Please generate a personalized training pathway for the following learner:
-
+    Create a highly personalized Talent-to-Career Pathway for:
     - Name: ${profile.name}
-    - Highest Education: ${profile.educationLevel}
-    - Field of Study: ${profile.fieldOfStudy}
-    - Existing Skills: ${profile.priorSkills || 'None specified'}
-    - Socio-economic Context: ${profile.socioEconomicContext}
-    - Preferred Learning Pace: ${profile.learningPace}
-    - Preferred Difficulty Level: ${profile.difficultyLevel}
-    - Career Aspiration: ${profile.careerAspirations}
+    - Category: ${profile.talentCategory}
+    - Base Level: ${profile.educationLevel}
+    - Field/Sport: ${profile.fieldOfStudy}
+    - User's Unique Talents: ${profile.priorSkills}
+    - Desired Goal: ${profile.careerAspirations}
+    - Context: ${profile.socioEconomicContext}
+    - Pace: ${profile.learningPace}
 
-    Based on this profile, create a step-by-step pathway that is realistic, encouraging, and leads to a specific, in-demand job role. Ensure the steps are logical and build upon each other.
-
-    To make the pathway more practical and comprehensive, incorporate a variety of training types. Where appropriate, include hands-on experiences like 'Apprenticeship', 'Internship', and 'On-the-Job Training', along with focused, shorter-term options like 'Workshop' and 'Online Module' to supplement core 'Courses' and 'Certifications'.
-
-    For each step in the pathway, if any of the learner's 'Existing Skills' are a direct foundation for that step, list them in the 'relevantSkills' field for that step. This helps the learner see how their current knowledge applies.
-
-    For the 'skillsFeedback', provide highly specific and actionable advice. Go beyond general statements. Suggest specific types of free online courses on relevant platforms (like Swayam, NPTEL, or the eSkill India portal) or recommend a small, practical project the learner can start immediately to build confidence and foundational skills relevant to their new pathway.
+    Focus heavily on recommending specific PHYSICAL training centers or academies if it's a sports/practical role.
   `;
 
-  let response;
   try {
-    response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+    const response = await ai.models.generateContent({
+      model: "gemini-3-pro-preview",
       contents: prompt,
       config: {
         systemInstruction,
         responseMimeType: "application/json",
         responseSchema: responseSchema,
-        temperature: 0.7,
+        temperature: 0.8,
+        thinkingConfig: { thinkingBudget: 32768 }
       },
     });
-  } catch (error) {
-    console.error("Error calling Gemini API:", error);
-    if (error instanceof Error && error.message.includes('API key not valid')) {
-      throw new APIError("The AI service is currently unavailable due to a configuration issue. Our team has been notified.");
-    }
-    throw new APIError("There was a problem communicating with the AI service. Please check your internet connection or try again in a few moments.");
-  }
-  
-  let pathwayData;
-  try {
+
     const jsonText = response.text.trim();
-     if (!jsonText) {
-      throw new ParseError("The AI returned an empty response, which may be a temporary issue. Please try your request again.");
-    }
-    pathwayData = JSON.parse(jsonText);
+    const pathwayData = JSON.parse(jsonText);
+    pathwayData.pathway.sort((a: any, b: any) => a.step - b.step);
+    return pathwayData as TrainingPathway;
   } catch (error) {
-    console.error("Error parsing JSON response from AI:", error);
-    if (error instanceof ParseError) {
-      throw error;
-    }
-    throw new ParseError("The AI service returned an invalid response. This can happen during high traffic. Please try again in a moment.");
+    console.error("Gemini API Error:", error);
+    throw new APIError("Failed to map your talents to a pathway. Please try again.");
   }
-  
-  if (!pathwayData.pathway || !Array.isArray(pathwayData.pathway) || pathwayData.pathway.length === 0) {
-    throw new ParseError("The AI's response was incomplete or did not contain a valid pathway. Please try refining your career goals and submit again.");
+};
+
+export const searchCourseUpdates = async (resourceLabel: string, role: string) => {
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: `Find admission forms, trial dates, or contact info for "${resourceLabel}" related to becoming a "${role}" in India.`,
+      config: { tools: [{ googleSearch: {} }] },
+    });
+    const text = response.text;
+    const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks
+      ?.map((chunk: any) => ({ title: chunk.web?.title, uri: chunk.web?.uri }))
+      .filter((s: any) => s.uri && s.title) || [];
+    
+    // Create a detailed timestamp
+    const timestamp = new Date().toLocaleString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+
+    return { text, sources, sourceType: 'Grounded Live Update', timestamp };
+  } catch (error) {
+    throw new Error("Live search failed.");
   }
-
-  // Sort pathway steps just in case the model returns them out of order
-  pathwayData.pathway.sort((a: any, b: any) => a.step - b.step);
-
-  return pathwayData as TrainingPathway;
 };
