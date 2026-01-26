@@ -54,7 +54,8 @@ const responseSchema = {
           duration: { type: Type.STRING },
           type: { 
             type: Type.STRING,
-            enum: ['Course', 'Certification', 'On-the-Job Training', 'Micro-credential', 'Assessment', 'Apprenticeship', 'Internship', 'Workshop', 'Online Module', 'Athletic Coaching', 'Fitness Training', 'Trial/Selection']
+            enum: ['Course', 'Certification', 'On-the-Job Training', 'Micro-credential', 'Assessment', 'Apprenticeship', 'Internship', 'Workshop', 'Online Module', 'Athletic Coaching', 'Fitness Training'],
+            description: "The type of activity." 
           },
           costType: { type: Type.STRING, enum: ['Free', 'Paid', 'Mixed'] },
           costNotes: { type: Type.STRING },
@@ -79,40 +80,30 @@ const responseSchema = {
   required: ["summary", "recommendedRole", "skillsFeedback", "skillGapAnalysis", "futureProspects", "pathway"]
 };
 
+// Resolve common environment variable names for the Gemini API key.
+const resolveApiKey = () => {
+  if (typeof process === 'undefined') return undefined;
+  return (
+    process.env.API_KEY ||
+    process.env.GEMINI_API_KEY ||
+    process.env.VITE_GEMINI_API_KEY ||
+    process.env.NEXT_PUBLIC_GEMINI_API_KEY
+  );
+};
+
 export const generatePathway = async (profile: LearnerProfile): Promise<TrainingPathway> => {
   // Always create a new instance before making an API call to ensure current environment state is captured.
-  const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : undefined;
+  const apiKey = resolveApiKey();
   if (!apiKey) {
-    throw new APIError("API Key is missing. Please ensure the environment variable is configured.");
+    throw new APIError("API Key is missing. Please ensure the environment variable API_KEY or GEMINI_API_KEY is configured.");
   }
   
   const ai = new GoogleGenAI({ apiKey });
   const isSports = profile.talentCategory === 'Sports/Athletics';
   
-  const systemInstruction = `You are a World-Class Talent Scout and Career Consultant specializing in both the Indian Vocational (NSQF) and Athletic (SAI/Sports Authority) systems. 
-  Your primary goal is to map INDIVIDUAL HUMAN TALENT to professional outcomes. 
+  const systemInstruction = `You are a World-Class Talent Scout and Career Consultant specializing in both the Indian Vocational (NSQF) and Athletic (SAI/Sports Authority) systems. \n  Your primary goal is to map INDIVIDUAL HUMAN TALENT to professional outcomes. \n  \n  For ${isSports ? 'SPORTS' : 'ACADEMIC/VOCATIONAL'} profiles:\n  1. Analyze the 'priorSkills' as specific human aptitudes (e.g., endurance, logical reasoning, dexterity).\n  2. Map these to ${isSports ? 'specific Sports Academies, SAI Regional Centers, or Olympic tracks' : 'NSQF certified courses, ITIs, and Industry apprenticeship programs'}.\n  3. Every human is different; personalize the steps based on their learning pace and socioeconomic context.\n  4. For Sports, include 'Trial/Selection' phases and 'Fitness Training' milestones.\n  5. Provide REALISTIC career packages in INR (considering sponsorships for sports or industry salaries for vocational).\n  6. Output ONLY valid JSON according to the schema.`;
   
-  For ${isSports ? 'SPORTS' : 'ACADEMIC/VOCATIONAL'} profiles:
-  1. Analyze the 'priorSkills' as specific human aptitudes (e.g., endurance, logical reasoning, dexterity).
-  2. Map these to ${isSports ? 'specific Sports Academies, SAI Regional Centers, or Olympic tracks' : 'NSQF certified courses, ITIs, and Industry apprenticeship programs'}.
-  3. Every human is different; personalize the steps based on their learning pace and socioeconomic context.
-  4. For Sports, include 'Trial/Selection' phases and 'Fitness Training' milestones.
-  5. Provide REALISTIC career packages in INR (considering sponsorships for sports or industry salaries for vocational).
-  6. Output ONLY valid JSON according to the schema.`;
-
-  const prompt = `
-    Create a highly personalized Talent-to-Career Pathway for:
-    - Name: ${profile.name}
-    - Category: ${profile.talentCategory}
-    - Base Level: ${profile.educationLevel}
-    - Field/Sport: ${profile.fieldOfStudy}
-    - User's Unique Talents: ${profile.priorSkills}
-    - Desired Goal: ${profile.careerAspirations}
-    - Context: ${profile.socioEconomicContext}
-    - Pace: ${profile.learningPace}
-
-    Focus heavily on recommending specific PHYSICAL training centers or academies if it's a sports/practical role.
-  `;
+  const prompt = `\n    Create a highly personalized Talent-to-Career Pathway for:\n    - Name: ${profile.name}\n    - Category: ${profile.talentCategory}\n    - Base Level: ${profile.educationLevel}\n    - Field/Sport: ${profile.fieldOfStudy}\n    - User's Unique Talents: ${profile.priorSkills}\n    - Desired Goal: ${profile.careerAspirations}\n    - Context: ${profile.socioEconomicContext}\n    - Pace: ${profile.learningPace}\n\n    Focus heavily on recommending specific PHYSICAL training centers or academies if it's a sports/practical role.\n  `;
 
   try {
     const response = await ai.models.generateContent({
@@ -121,7 +112,7 @@ export const generatePathway = async (profile: LearnerProfile): Promise<Training
       config: {
         systemInstruction,
         responseMimeType: "application/json",
-        responseSchema: responseSchema,
+        responseSchema,
         temperature: 0.8,
         thinkingConfig: { thinkingBudget: 32768 }
       },
@@ -138,7 +129,7 @@ export const generatePathway = async (profile: LearnerProfile): Promise<Training
 };
 
 export const searchCourseUpdates = async (resourceLabel: string, role: string) => {
-  const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : undefined;
+  const apiKey = resolveApiKey();
   if (!apiKey) {
     throw new Error("API Key is missing.");
   }
@@ -148,25 +139,4 @@ export const searchCourseUpdates = async (resourceLabel: string, role: string) =
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `Find admission forms, trial dates, or contact info for "${resourceLabel}" related to becoming a "${role}" in India.`,
-      config: { tools: [{ googleSearch: {} }] },
-    });
-    const text = response.text;
-    const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks
-      ?.map((chunk: any) => ({ title: chunk.web?.title, uri: chunk.web?.uri }))
-      .filter((s: any) => s.uri && s.title) || [];
-    
-    const timestamp = new Date().toLocaleString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    });
-
-    return { text, sources, sourceType: 'Grounded Live Update', timestamp };
-  } catch (error) {
-    throw new Error("Live search failed.");
-  }
-};
+      contents: `Find admission forms, trial dates, or contact info for \
