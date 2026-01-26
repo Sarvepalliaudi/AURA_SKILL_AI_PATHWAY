@@ -79,27 +79,17 @@ const responseSchema = {
   required: ["summary", "recommendedRole", "skillsFeedback", "skillGapAnalysis", "futureProspects", "pathway"]
 };
 
-// Safety wrapper for API key retrieval
-const getApiKey = () => {
-  try {
-    return (globalThis as any).process?.env?.API_KEY || (import.meta as any).env?.VITE_API_KEY;
-  } catch (e) {
-    return undefined;
-  }
-};
-
 export const generatePathway = async (profile: LearnerProfile): Promise<TrainingPathway> => {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    throw new APIError("Gemini API Key is missing. Please ensure API_KEY is set in Vercel Environment Variables.");
+  if (!process.env.API_KEY) {
+    throw new APIError("The Gemini API key is not configured in the environment variables. Please ensure API_KEY is set in your project settings.");
   }
   
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const isSports = profile.talentCategory === 'Sports/Athletics';
   
-  const systemInstruction = `You are a World-Class Talent Scout and Career Consultant specializing in both the Indian Vocational (NSQF) and Athletic (SAI/Sports Authority) systems. Your primary goal is to map INDIVIDUAL HUMAN TALENT to professional outcomes. For ${isSports ? 'SPORTS' : 'ACADEMIC/VOCATIONAL'} profiles: 1. Analyze aptitudes. 2. Map to Indian centers/academies. 3. Personalize pace. 4. Include realistic INR packages. Output ONLY valid JSON.`;
+  const systemInstruction = `You are a World-Class Talent Scout and Career Consultant specializing in both the Indian Vocational (NSQF) and Athletic (SAI/Sports Authority) systems. Your primary goal is to map INDIVIDUAL HUMAN TALENT to professional outcomes. For ${isSports ? 'SPORTS' : 'ACADEMIC/VOCATIONAL'} profiles: 1. Analyze aptitudes. 2. Map to Indian centers/academies. 3. Personalize pace. 4. Include realistic INR packages. Output ONLY valid JSON according to the schema.`;
 
-  const prompt = `Create a pathway for: Name: ${profile.name}, Category: ${profile.talentCategory}, Base: ${profile.educationLevel}, Field: ${profile.fieldOfStudy}, Talents: ${profile.priorSkills}, Goal: ${profile.careerAspirations}, Context: ${profile.socioEconomicContext}, Pace: ${profile.learningPace}.`;
+  const prompt = `Create a highly personalized Talent-to-Career Pathway for: Name: ${profile.name}, Category: ${profile.talentCategory}, Base Level: ${profile.educationLevel}, Field/Sport: ${profile.fieldOfStudy}, User's Unique Talents: ${profile.priorSkills}, Desired Goal: ${profile.careerAspirations}, Context: ${profile.socioEconomicContext}, Pace: ${profile.learningPace}.`;
 
   try {
     const response = await ai.models.generateContent({
@@ -120,22 +110,26 @@ export const generatePathway = async (profile: LearnerProfile): Promise<Training
     return pathwayData as TrainingPathway;
   } catch (error) {
     console.error("Gemini API Error:", error);
-    throw new APIError("Failed to generate pathway. Check your API key and quota.");
+    throw new APIError("Failed to map your talents to a pathway. Please check your network connection and ensure your API_KEY is valid.");
   }
 };
 
 export const searchCourseUpdates = async (resourceLabel: string, role: string) => {
-  const apiKey = getApiKey();
-  if (!apiKey) throw new Error("API Key missing.");
-  
-  const ai = new GoogleGenAI({ apiKey });
+  if (!process.env.API_KEY) {
+    throw new APIError("The Gemini API key is not configured in the environment variables. Please ensure API_KEY is set in your project settings.");
+  }
+
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `Find latest admission info for "${resourceLabel}" regarding "${role}" career in India.`,
-      config: { tools: [{ googleSearch: {} }] },
+      contents: `Find latest admission forms, trial dates, or contact info for "${resourceLabel}" regarding becoming a "${role}" in India.`,
+      config: {
+        tools: [{ googleSearch: {} }],
+      },
     });
+    
     const text = response.text;
     const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks
       ?.map((chunk: any) => ({ title: chunk.web?.title, uri: chunk.web?.uri }))
@@ -147,6 +141,7 @@ export const searchCourseUpdates = async (resourceLabel: string, role: string) =
 
     return { text, sources, sourceType: 'Grounded Live Update', timestamp };
   } catch (error) {
-    throw new Error("Live search failed.");
+    console.error("Search API Error:", error);
+    throw new Error("Live search failed. Please try again later.");
   }
 };
