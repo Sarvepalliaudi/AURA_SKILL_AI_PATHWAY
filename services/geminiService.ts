@@ -60,12 +60,12 @@ const responseSchema = {
           costNotes: { type: Type.STRING },
           learningResources: {
             type: Type.ARRAY,
-            description: "MUST include physical locations/academies (e.g. SAI Center, Bangalore) for sports or specific portals (Swayam) for studies.",
+            description: "MUST prioritize official GoI links. Include portals like Skill India Digital (skillindiadigital.gov.in), Swayam (swayam.gov.in), SAI (sportsauthorityofindia.nic.in), NCVET, or MyGov.",
             items: {
               type: Type.OBJECT,
               properties: {
-                label: { type: Type.STRING, description: "Official name of the Academy, Center, or Platform." },
-                url: { type: Type.STRING, description: "Website URL or Google Maps Search link for the physical center." }
+                label: { type: Type.STRING, description: "Official name of the Academy, Center, or GoI Portal." },
+                url: { type: Type.STRING, description: "Official .gov.in or .nic.in URL or a verified training center link." }
               },
               required: ["label", "url"]
             }
@@ -87,9 +87,25 @@ export const generatePathway = async (profile: LearnerProfile): Promise<Training
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const isSports = profile.talentCategory === 'Sports/Athletics';
   
-  const systemInstruction = `You are a World-Class Talent Scout and Career Consultant specializing in both the Indian Vocational (NSQF) and Athletic (SAI/Sports Authority) systems. Your primary goal is to map INDIVIDUAL HUMAN TALENT to professional outcomes. For ${isSports ? 'SPORTS' : 'ACADEMIC/VOCATIONAL'} profiles: 1. Analyze aptitudes. 2. Map to Indian centers/academies. 3. Personalize pace. 4. Include realistic INR packages. Output ONLY valid JSON according to the schema.`;
+  const systemInstruction = `You are the core intelligence of AURA SKILL - NCVET AI Pathfinder. Your expertise covers the National Skills Qualifications Framework (NSQF) and the Sports Authority of India (SAI) ecosystems. 
+  
+  CRITICAL GUIDELINES:
+  1. ACCURACY: You must provide links and references to official Indian Government portals.
+  2. RESOURCES: For vocational tracks, prioritize Skill India Digital, NCVET, Swayam, and NSDC. For sports, prioritize SAI Academies, Khelo India, and National Sports Federations.
+  3. LOCALIZATION: Reference physical centers in major Indian cities (Delhi, Mumbai, Bengaluru, etc.) relevant to the user's location or context.
+  4. NSQF ALIGNMENT: Every vocational step MUST have an explicit NSQF Level (1-10).
+  5. OUTPUT: Return valid JSON matching the schema. Be encouraging, precise, and professional.`;
 
-  const prompt = `Create a highly personalized Talent-to-Career Pathway for: Name: ${profile.name}, Category: ${profile.talentCategory}, Base Level: ${profile.educationLevel}, Field/Sport: ${profile.fieldOfStudy}, User's Unique Talents: ${profile.priorSkills}, Desired Goal: ${profile.careerAspirations}, Context: ${profile.socioEconomicContext}, Pace: ${profile.learningPace}.`;
+  const prompt = `User Profile:
+  Name: ${profile.name}
+  Talent Category: ${profile.talentCategory}
+  Education: ${profile.educationLevel}
+  Focus: ${profile.fieldOfStudy}
+  Unique Talents: ${profile.priorSkills}
+  Aspiration: ${profile.careerAspirations}
+  Pace: ${profile.learningPace}
+  
+  Task: Construct a complete Career/Talent Roadmap. Ensure all Resource URLs are authentic GoI platforms or verified training institutes.`;
 
   try {
     const response = await ai.models.generateContent({
@@ -99,7 +115,7 @@ export const generatePathway = async (profile: LearnerProfile): Promise<Training
         systemInstruction,
         responseMimeType: "application/json",
         responseSchema: responseSchema,
-        temperature: 0.8,
+        temperature: 0.7,
         thinkingConfig: { thinkingBudget: 32768 }
       },
     });
@@ -110,13 +126,13 @@ export const generatePathway = async (profile: LearnerProfile): Promise<Training
     return pathwayData as TrainingPathway;
   } catch (error) {
     console.error("Gemini API Error:", error);
-    throw new APIError("Failed to map your talents to a pathway. Please check your network connection and ensure your API_KEY is valid.");
+    throw new APIError("The AI encountered an error while mapping your GoI pathway. Please try again.");
   }
 };
 
 export const searchCourseUpdates = async (resourceLabel: string, role: string) => {
   if (!process.env.API_KEY) {
-    throw new APIError("The Gemini API key is not configured in the environment variables. Please ensure API_KEY is set in your project settings.");
+    throw new APIError("The Gemini API key is not configured. Please ensure API_KEY is set.");
   }
 
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -124,7 +140,7 @@ export const searchCourseUpdates = async (resourceLabel: string, role: string) =
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `Find latest admission forms, trial dates, or contact info for "${resourceLabel}" regarding becoming a "${role}" in India.`,
+      contents: `Search for official notification, admission dates, or registration links on government websites (.gov.in, .nic.in) for "${resourceLabel}" training in India for the role of "${role}".`,
       config: {
         tools: [{ googleSearch: {} }],
       },
@@ -139,9 +155,9 @@ export const searchCourseUpdates = async (resourceLabel: string, role: string) =
       day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true
     });
 
-    return { text, sources, sourceType: 'Grounded Live Update', timestamp };
+    return { text, sources, sourceType: 'Grounded GoI Update', timestamp };
   } catch (error) {
     console.error("Search API Error:", error);
-    throw new Error("Live search failed. Please try again later.");
+    throw new Error("Live search failed. Please try again.");
   }
 };

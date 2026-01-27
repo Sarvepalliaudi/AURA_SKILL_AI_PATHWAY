@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 const Footer: React.FC = () => {
@@ -12,7 +13,7 @@ const Footer: React.FC = () => {
            <a href="mailto:sarvepalliaudi@gmail.com" className="text-slate-400 hover:text-indigo-600 transition-colors">Feedback</a>
         </div>
         
-        <p className="text-slate-400 text-xs font-medium uppercase tracking-widest mb-2">Developed for the NCVET AI Challenge</p>
+        <p className="text-slate-400 text-xs font-medium uppercase tracking-widest mb-2">Developed for the AURA SKILL - NCVET AI Challenge</p>
         <p className="text-slate-900 font-black text-sm">
           AUDI SIVA BHANUVARDHAN SARVEPALLI
         </p>
@@ -21,7 +22,7 @@ const Footer: React.FC = () => {
         </p>
         
         <div className="mt-8 pt-8 border-t border-slate-50">
-          <p className="text-slate-300 text-[10px] font-bold uppercase tracking-tighter">© 2024 NCVET AI Pathfinder • Asphenix Intelligence</p>
+          <p className="text-slate-300 text-[10px] font-bold uppercase tracking-tighter">© 2024 AURA SKILL - NCVET AI Pathfinder • Asphenix Intelligence</p>
         </div>
       </div>
     </footer>
